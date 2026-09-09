@@ -1,11 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="DOTTOR SOS">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1d4ed8"/>
-      <stop offset="1" stop-color="#0f172a"/>
-    </linearGradient>
-  </defs>
-  <rect width="128" height="128" rx="32" fill="url(#g)"/>
-  <rect x="54" y="22" width="20" height="84" rx="6" fill="#fff"/>
-  <rect x="22" y="54" width="84" height="20" rx="6" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="220" fill="#141414"/>
+  <circle cx="512" cy="400" r="132" fill="#0a0a0a"/>
+  <rect x="478" y="318" width="68" height="164" rx="8" fill="#fff"/>
+  <rect x="430" y="366" width="164" height="68" rx="8" fill="#fff"/>
+  <line x1="120" y1="620" x2="904" y2="620" stroke="#2a2a2a" stroke-width="4"/>
+  <text x="512" y="760" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="92" font-weight="700" fill="#fff" letter-spacing="4">DOTTOR SOS</text>
 </svg>
