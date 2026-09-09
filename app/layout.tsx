@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "DOTTOR SOS · Collesalvetti",
-  description: "Farmacie aperte, defibrillatori DAE e pronto soccorso vicino a te",
+  description: "Farmacie, DAE, pronto soccorso, medici e infermiere IA",
+  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
@@ -15,7 +16,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased text-[18px] bg-[#F5F5F7] text-black">{children}</body>
     </html>
   );
 }
