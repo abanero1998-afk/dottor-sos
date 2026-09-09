@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, CircleMarker, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -14,6 +14,8 @@ type Poi = {
   luogo?: string; attesa?: string; persone?: number; stato?: string; min?: number;
 };
 
+type GeoHit = { label: string; lat: number; lng: number };
+
 function pinIcon(html: string, size = 40) {
   return L.divIcon({ className: "custom-pin", html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
 }
@@ -24,9 +26,9 @@ function FlyTo({ lat, lng }: { lat: number; lng: number }) {
   }, [lat, lng, map]);
   return null;
 }
-function dot(bg: string, emoji: string, extra = "") {
+function dot(bg: string, emoji: string) {
   return pinIcon(
-    `<div style="width:42px;height:42px;border-radius:9999px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;box-shadow:0 8px 20px rgba(0,0,0,.35);border:3px solid white;background:${bg};font-size:16px">${emoji}${extra}</div>`
+    `<div style="width:42px;height:42px;border-radius:9999px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;box-shadow:0 8px 20px rgba(0,0,0,.35);border:3px solid white;background:${bg};font-size:16px">${emoji}</div>`
   );
 }
 
@@ -36,6 +38,10 @@ export default function DottorSOS() {
   const [filter, setFilter] = useState("tutti");
   const [selected, setSelected] = useState<Poi | null>(null);
   const [search, setSearch] = useState("");
+  const [addrQuery, setAddrQuery] = useState("");
+  const [address, setAddress] = useState("");
+  const [geoHits, setGeoHits] = useState<GeoHit[]>([]);
+  const [geoProvider, setGeoProvider] = useState("");
   const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null);
   const [geoErr, setGeoErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -90,6 +96,19 @@ export default function DottorSOS() {
 
   useEffect(() => {
     if (!pos) return;
+    fetch(`/api/geocode?lat=${pos.lat}&lng=${pos.lng}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.results?.[0]) {
+          setAddress(d.results[0].label);
+          setGeoProvider(d.provider || "");
+        }
+      })
+      .catch(() => {});
+  }, [pos]);
+
+  useEffect(() => {
+    if (!pos) return;
     let stop = false;
     setLoading(true);
     fetch(`/api/nearby?lat=${pos.lat}&lng=${pos.lng}`)
@@ -122,6 +141,20 @@ export default function DottorSOS() {
       stop = true;
     };
   }, [pos]);
+
+  async function searchAddress() {
+    const q = addrQuery.trim();
+    if (!q) return;
+    const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    setGeoHits(data.results || []);
+    setGeoProvider(data.provider || "");
+    if (data.results?.[0]) {
+      setPos({ lat: data.results[0].lat, lng: data.results[0].lng });
+      setAddress(data.results[0].label);
+      setSelected(null);
+    }
+  }
 
   const q = search.toLowerCase();
   const farmList = farmacie.filter((f) => !q || f.nome.toLowerCase().includes(q) || (f.addr || "").toLowerCase().includes(q));
@@ -196,11 +229,12 @@ export default function DottorSOS() {
         <div className="max-w-6xl mx-auto flex flex-col gap-2 pointer-events-auto">
           <div className="bg-white text-black rounded-[20px] shadow-xl px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white font-black text-2xl">+</div>
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="font-black leading-none text-xl">{t.title}</p>
-              <p className="text-base text-black/70">{offline ? t.offline : geoErr || t.subtitle}</p>
+              <p className="text-base text-black/70 truncate">{address || (offline ? t.offline : geoErr || t.subtitle)}</p>
+              {geoProvider && <p className="text-xs text-black/50">Geocoding: {geoProvider === "google" ? "Google Maps" : "Nominatim (fallback)"}</p>}
             </div>
-            <div className="ml-auto flex gap-2 items-center">
+            <div className="ml-auto flex gap-2 items-center flex-wrap">
               {(["it", "en", "sq"] as Lang[]).map((l) => (
                 <button key={l} onClick={() => setLang(l)} className={`h-[48px] px-3 rounded-full font-bold border-2 ${lang === l ? "bg-black text-white" : "bg-white"}`}>{l.toUpperCase()}</button>
               ))}
@@ -208,6 +242,35 @@ export default function DottorSOS() {
               <a href="/comune" className="h-[48px] px-3 rounded-full font-bold border-2 flex items-center">{t.dashboard}</a>
             </div>
           </div>
+          <div className="bg-white text-black rounded-[20px] shadow-xl px-4 py-2 flex items-center gap-2">
+            <span className="font-black">📍</span>
+            <input
+              value={addrQuery}
+              onChange={(e) => setAddrQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && searchAddress()}
+              placeholder="Cerca indirizzo Google: via Roma 1 Livorno"
+              className="flex-1 outline-none h-[52px] text-[18px]"
+            />
+            <button onClick={searchAddress} className="h-[52px] px-5 rounded-full bg-black text-white font-black">Cerca</button>
+          </div>
+          {geoHits.length > 1 && (
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              {geoHits.map((h) => (
+                <button
+                  key={h.label + h.lat}
+                  className="w-full text-left px-4 py-3 border-b text-black"
+                  onClick={() => {
+                    setPos({ lat: h.lat, lng: h.lng });
+                    setAddress(h.label);
+                    setGeoHits([]);
+                    setAddrQuery(h.label);
+                  }}
+                >
+                  {h.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2 overflow-x-auto pb-1">
             {layers.map((b) => (
               <button key={b.id} onClick={() => setFilter(b.id)} className={`h-[60px] px-5 rounded-full font-bold border-2 whitespace-nowrap ${filter === b.id ? "bg-white text-black" : "bg-black/70 text-white border-white"}`}>
@@ -218,7 +281,7 @@ export default function DottorSOS() {
         </div>
       </div>
 
-      <div className="absolute bottom-4 left-4 right-4 md:left-4 md:right-auto md:w-[420px] bg-white text-black rounded-[24px] shadow-2xl p-4 max-h-[42vh] overflow-auto z-[500]">
+      <div className="absolute bottom-4 left-4 right-4 md:left-4 md:right-auto md:w-[420px] bg-white text-black rounded-[24px] shadow-2xl p-4 max-h-[38vh] overflow-auto z-[500]">
         <h3 className="font-black text-xl mb-2">{t.nearYou}</h3>
         {bestPs && (
           <div className="bg-red-50 border-2 border-red-700 rounded-2xl p-3 mb-3">
@@ -295,15 +358,10 @@ export default function DottorSOS() {
             <h2 className="font-black text-2xl">{t.drug}</h2>
             <input value={drugQ} onChange={(e) => setDrugQ(e.target.value)} placeholder="Tachipirina 500" className="mt-4 w-full h-[60px] rounded-2xl border-2 px-4" />
             <button onClick={searchDrug} className="mt-3 w-full h-[60px] bg-black text-white rounded-full font-black">Cerca</button>
-            <label className="mt-3 w-full h-[60px] bg-gray-100 rounded-full font-bold flex items-center justify-center cursor-pointer">
-              {t.scan}
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={() => setDrugQ((q) => q || "Tachipirina 500")} />
-            </label>
             {drugHit && (
               <div className="mt-4 p-4 bg-green-50 rounded-2xl border-2 border-green-800">
                 <p className="font-black text-xl">{drugHit.name}</p>
                 <p>Prezzo indicativo: {drugHit.price}</p>
-                <p className="text-base mt-1">{drugHit.note}. Giacenza reale non è pubblica: ti porto alla farmacia aperta più vicina.</p>
               </div>
             )}
           </div>
@@ -318,11 +376,6 @@ export default function DottorSOS() {
             {selected.chiusura && <p className="mt-2">{selected.chiusura}</p>}
             {selected.attesa && <p className="mt-2 font-bold text-red-700">{t.wait}: {selected.attesa} · {selected.persone} pax</p>}
             {selected.luogo && <p className="mt-2">{selected.luogo}</p>}
-            {selected.tipo === "dae" && (
-              <div className="mt-3 bg-blue-50 p-4 rounded-2xl">1. Apri teca 2. Accendi 3. Segui la voce
-                <a className="block mt-2 underline font-bold" href="https://www.youtube.com/results?search_query=uso+defibrillatore+DAE" target="_blank" rel="noreferrer">Video 30s</a>
-              </div>
-            )}
             {selected.tel && <a href={`tel:${selected.tel.replace(/\s/g, "")}`} className="mt-4 w-full h-[60px] bg-black text-white rounded-full font-black flex items-center justify-center">{t.call}</a>}
             <a href={`https://www.google.com/maps/dir/?api=1&destination=${selected.lat},${selected.lng}`} target="_blank" rel="noreferrer" className="mt-2 w-full h-[60px] bg-gray-200 rounded-full font-black flex items-center justify-center">{t.directions}</a>
           </div>
