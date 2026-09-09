@@ -3,7 +3,7 @@ export type Lang = "it" | "en" | "sq";
 export const STR: Record<Lang, Record<string, string>> = {
   it: {
     title: "DOTTOR SOS",
-    subtitle: "Comune di Collesalvetti · Italia",
+    subtitle: "Italia · farmacie, DAE, PS",
     all: "Tutti",
     pharmacies: "Farmacie",
     dae: "DAE",
@@ -24,12 +24,12 @@ export const STR: Record<Lang, Record<string, string>> = {
     better: "Meglio andare a",
     scan: "Scansiona ricetta",
     speakGM: "Chiama Guardia Medica 116 117",
-    offline: "Offline: mostro ultimi dati salvati",
+    offline: "Offline: ultimi dati salvati + DAE in cache",
     disclaimer: "Triage, non diagnosi. Emergenza: 112 / 118.",
   },
   en: {
     title: "DOTTOR SOS",
-    subtitle: "Municipality of Collesalvetti · Italy",
+    subtitle: "Italy · pharmacies, AED, ER",
     all: "All",
     pharmacies: "Pharmacies",
     dae: "AED",
@@ -50,12 +50,12 @@ export const STR: Record<Lang, Record<string, string>> = {
     better: "Better go to",
     scan: "Scan prescription",
     speakGM: "Call on-call doctor 116 117",
-    offline: "Offline: showing last saved data",
+    offline: "Offline: last saved data + cached AED",
     disclaimer: "Triage only, not a diagnosis. Emergency: 112.",
   },
   sq: {
     title: "DOTTOR SOS",
-    subtitle: "Komuna Collesalvetti · Itali",
+    subtitle: "Itali · farmaci, DAE, urgjenca",
     all: "Të gjitha",
     pharmacies: "Farmaci",
     dae: "DAE",
@@ -76,7 +76,7 @@ export const STR: Record<Lang, Record<string, string>> = {
     better: "Më mirë shko te",
     scan: "Skano recetën",
     speakGM: "Telefono gardën mjekësore 116 117",
-    offline: "Offline: të dhënat e fundit",
+    offline: "Offline: të dhënat e fundit + DAE",
     disclaimer: "Vetëm triage. Urgjenca: 112 / 118.",
   },
 };
