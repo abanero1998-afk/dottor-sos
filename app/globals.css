@@ -13,3 +13,48 @@ html, body { height: 100%; margin: 0; font-size: 18px; }
 .deaf-flash { animation: deafflash 0.25s linear 4; pointer-events: none; }
 
 button, a { min-height: 44px; }
+
+.glass {
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(22px) saturate(190%);
+  -webkit-backdrop-filter: blur(22px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.22);
+  color: #0b0b0c;
+}
+.glass-strong {
+  background: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+  color: #0b0b0c;
+}
+.glass-btn {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #0b0b0c;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+.glass-btn-on {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  color: #111;
+}
+.glass-chip {
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+.glass input {
+  background: transparent;
+  color: inherit;
+}
+.glass input::placeholder {
+  color: rgba(10, 10, 10, 0.5);
+}
