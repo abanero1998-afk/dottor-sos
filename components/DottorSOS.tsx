@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import { formatDistance } from "@/lib/geo";
 import { STR, type Lang } from "@/lib/i18n";
 import { findDrug } from "@/lib/drugs";
+import BabyPanel from "@/components/BabyPanel";
 
 type Poi = {
   id: string; tipo: string; nome: string; lat: number; lng: number; dist: number;
@@ -37,7 +38,6 @@ export default function DottorSOS() {
   const t = STR[lang];
   const [filter, setFilter] = useState("tutti");
   const [selected, setSelected] = useState<Poi | null>(null);
-  const [search, setSearch] = useState("");
   const [addrQuery, setAddrQuery] = useState("");
   const [address, setAddress] = useState("");
   const [geoHits, setGeoHits] = useState<GeoHit[]>([]);
@@ -54,6 +54,7 @@ export default function DottorSOS() {
   const [fonte, setFonte] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
   const [drugOpen, setDrugOpen] = useState(false);
+  const [babyOpen, setBabyOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [drugQ, setDrugQ] = useState("");
   const [drugHit, setDrugHit] = useState<ReturnType<typeof findDrug>>(null);
@@ -156,8 +157,7 @@ export default function DottorSOS() {
     }
   }
 
-  const q = search.toLowerCase();
-  const farmList = farmacie.filter((f) => !q || f.nome.toLowerCase().includes(q) || (f.addr || "").toLowerCase().includes(q));
+  const farmList = farmacie;
   const bestPs = [...ps].sort((a, b) => (a.min || 99) - (b.min || 99) || a.dist - b.dist)[0];
   const fly = selected || pos;
 
@@ -244,28 +244,13 @@ export default function DottorSOS() {
           </div>
           <div className="bg-white text-black rounded-[20px] shadow-xl px-4 py-2 flex items-center gap-2">
             <span className="font-black">📍</span>
-            <input
-              value={addrQuery}
-              onChange={(e) => setAddrQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && searchAddress()}
-              placeholder="Cerca indirizzo Google: via Roma 1 Livorno"
-              className="flex-1 outline-none h-[52px] text-[18px]"
-            />
+            <input value={addrQuery} onChange={(e) => setAddrQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && searchAddress()} placeholder="Cerca indirizzo Google: via Roma 1 Livorno" className="flex-1 outline-none h-[52px] text-[18px]" />
             <button onClick={searchAddress} className="h-[52px] px-5 rounded-full bg-black text-white font-black">Cerca</button>
           </div>
           {geoHits.length > 1 && (
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
               {geoHits.map((h) => (
-                <button
-                  key={h.label + h.lat}
-                  className="w-full text-left px-4 py-3 border-b text-black"
-                  onClick={() => {
-                    setPos({ lat: h.lat, lng: h.lng });
-                    setAddress(h.label);
-                    setGeoHits([]);
-                    setAddrQuery(h.label);
-                  }}
-                >
+                <button key={h.label + h.lat} className="w-full text-left px-4 py-3 border-b text-black" onClick={() => { setPos({ lat: h.lat, lng: h.lng }); setAddress(h.label); setGeoHits([]); setAddrQuery(h.label); }}>
                   {h.label}
                 </button>
               ))}
@@ -286,9 +271,6 @@ export default function DottorSOS() {
         {bestPs && (
           <div className="bg-red-50 border-2 border-red-700 rounded-2xl p-3 mb-3">
             <p className="font-bold">{t.er}: {ps[0]?.nome} · {ps[0]?.attesa} · {ps[0]?.persone} pax</p>
-            {bestPs.id !== ps[0]?.id && (
-              <p className="text-base mt-1">{t.better} {bestPs.nome} ({bestPs.attesa})</p>
-            )}
           </div>
         )}
         {filter !== "ps" && filter !== "dae" && filter !== "medici" && filter !== "pedvet" &&
@@ -304,7 +286,7 @@ export default function DottorSOS() {
         {filter === "ps" && ps.slice(0, 8).map((p) => (
           <div key={p.id} onClick={() => setSelected(p)} className="py-3 border-b cursor-pointer">
             <p className="font-bold">{p.nome}</p>
-            <p>{formatDistance(p.dist)} · {t.wait} {p.attesa} · {p.persone} pax</p>
+            <p>{formatDistance(p.dist)} · {t.wait} {p.attesa}</p>
           </div>
         ))}
         {filter === "dae" && dae.slice(0, 8).map((d) => (
@@ -316,7 +298,7 @@ export default function DottorSOS() {
         {filter === "medici" && medici.slice(0, 8).map((d) => (
           <div key={d.id} onClick={() => setSelected(d)} className="py-3 border-b cursor-pointer">
             <p className="font-bold">{d.nome}</p>
-            <p>{formatDistance(d.dist)} {d.tel ? `· ${d.tel}` : ""}</p>
+            <p>{formatDistance(d.dist)}</p>
           </div>
         ))}
         {filter === "pedvet" && pedvet.slice(0, 8).map((d) => (
@@ -329,10 +311,23 @@ export default function DottorSOS() {
       </div>
 
       <div className="absolute bottom-4 right-4 z-[600] flex flex-col gap-2">
+        <button onClick={() => setBabyOpen(true)} className="h-[60px] px-6 bg-violet-700 text-white rounded-full font-black shadow-2xl">Bimbo</button>
         <button onClick={() => setDrugOpen(true)} className="h-[60px] px-6 bg-white text-black rounded-full font-black shadow-2xl border-2 border-black">{t.drug}</button>
         <button onClick={() => setChatOpen(true)} className="h-[60px] px-6 bg-black text-white rounded-full font-black shadow-2xl border-2 border-white">{t.nurse}</button>
         <button onClick={askGeo} className="h-[60px] px-6 bg-blue-700 text-white rounded-full font-black shadow-2xl">{t.position}</button>
       </div>
+
+      {babyOpen && (
+        <BabyPanel
+          onClose={() => setBabyOpen(false)}
+          onPickPharmacy={() => {
+            setBabyOpen(false);
+            setFilter("farmacie");
+            const open = farmList.find((f) => f.aperta) || farmList[0];
+            if (open) setSelected(open);
+          }}
+        />
+      )}
 
       {chatOpen && (
         <div className="absolute inset-0 z-[1100] bg-black/50 flex items-end md:items-center justify-center p-4" onClick={() => setChatOpen(false)}>
@@ -345,7 +340,7 @@ export default function DottorSOS() {
             </div>
             <a href="tel:116117" className="mx-4 mb-2 h-[60px] rounded-full bg-yellow-400 text-black font-black flex items-center justify-center">{t.speakGM}</a>
             <div className="p-3 flex gap-2 border-t">
-              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendChat()} placeholder="Febbre / Tachipirina…" className="flex-1 bg-gray-100 rounded-full px-4 h-[60px]" />
+              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendChat()} placeholder="Aptamil / febbre bimbo…" className="flex-1 bg-gray-100 rounded-full px-4 h-[60px]" />
               <button onClick={sendChat} className="h-[60px] px-5 bg-black text-white rounded-full font-black">OK</button>
             </div>
           </div>
@@ -374,7 +369,7 @@ export default function DottorSOS() {
             <p className="uppercase font-bold tracking-widest text-base">{selected.tipo} · {formatDistance(selected.dist)}</p>
             <h2 className="font-black text-2xl mt-1">{selected.nome}</h2>
             {selected.chiusura && <p className="mt-2">{selected.chiusura}</p>}
-            {selected.attesa && <p className="mt-2 font-bold text-red-700">{t.wait}: {selected.attesa} · {selected.persone} pax</p>}
+            {selected.attesa && <p className="mt-2 font-bold text-red-700">{t.wait}: {selected.attesa}</p>}
             {selected.luogo && <p className="mt-2">{selected.luogo}</p>}
             {selected.tel && <a href={`tel:${selected.tel.replace(/\s/g, "")}`} className="mt-4 w-full h-[60px] bg-black text-white rounded-full font-black flex items-center justify-center">{t.call}</a>}
             <a href={`https://www.google.com/maps/dir/?api=1&destination=${selected.lat},${selected.lng}`} target="_blank" rel="noreferrer" className="mt-2 w-full h-[60px] bg-gray-200 rounded-full font-black flex items-center justify-center">{t.directions}</a>
