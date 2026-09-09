@@ -8,6 +8,11 @@ import { formatDistance } from "@/lib/geo";
 import { STR, type Lang } from "@/lib/i18n";
 import { findDrug } from "@/lib/drugs";
 import BabyPanel from "@/components/BabyPanel";
+import Splash from "@/components/Splash";
+import { cachedDae, mergeDae } from "@/lib/dae-offline";
+
+const FALLBACK = { lat: 41.9028, lng: 12.4964 };
+const OSM = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 type Poi = {
   id: string; tipo: string; nome: string; lat: number; lng: number; dist: number;
@@ -21,7 +26,7 @@ function pinIcon(html: string, size = 40) {
 function FlyTo({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   useEffect(() => {
-    map.flyTo([lat, lng], Math.max(map.getZoom(), 14), { duration: 0.7 });
+    map.flyTo([lat, lng], Math.max(map.getZoom(), 13), { duration: 0.6 });
   }, [lat, lng, map]);
   return null;
 }
@@ -37,12 +42,12 @@ export default function DottorSOS() {
   const [filter, setFilter] = useState("tutti");
   const [selected, setSelected] = useState<Poi | null>(null);
   const [address, setAddress] = useState("");
-  const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [pos, setPos] = useState<{ lat: number; lng: number }>(FALLBACK);
   const [geoErr, setGeoErr] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [farmacie, setFarmacie] = useState<Poi[]>([]);
-  const [dae, setDae] = useState<Poi[]>([]);
+  const [dae, setDae] = useState<Poi[]>(cachedDae);
   const [ps, setPs] = useState<Poi[]>([]);
   const [medici, setMedici] = useState<Poi[]>([]);
   const [pedvet, setPedvet] = useState<Poi[]>([]);
@@ -56,6 +61,9 @@ export default function DottorSOS() {
   const [deaf, setDeaf] = useState(false);
   const [flash, setFlash] = useState(false);
   const [messages, setMessages] = useState<{ role: "user" | "nurse"; text: string }[]>([]);
+  const [progress, setProgress] = useState(8);
+  const [bootLabel, setBootLabel] = useState("Avvio");
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     setMessages([{ role: "nurse", text: t.disclaimer }]);
@@ -69,20 +77,24 @@ export default function DottorSOS() {
   }, [deaf]);
 
   const askGeo = useCallback(() => {
+    setBootLabel("Posizione");
+    setProgress((p) => Math.max(p, 25));
     if (!navigator.geolocation) {
-      setPos({ lat: 43.594, lng: 10.476 });
+      setPos(FALLBACK);
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (p) => {
         setGeoErr("");
         setPos({ lat: p.coords.latitude, lng: p.coords.longitude });
+        setProgress((x) => Math.max(x, 45));
       },
       () => {
-        setGeoErr("GPS off — Collesalvetti");
-        setPos({ lat: 43.594, lng: 10.476 });
+        setGeoErr("GPS non disponibile");
+        setPos(FALLBACK);
+        setProgress((x) => Math.max(x, 45));
       },
-      { enableHighAccuracy: true, timeout: 12000 }
+      { enableHighAccuracy: true, timeout: 8000 }
     );
   }, []);
 
@@ -91,7 +103,6 @@ export default function DottorSOS() {
   }, [askGeo]);
 
   useEffect(() => {
-    if (!pos) return;
     fetch(`/api/geocode?lat=${pos.lat}&lng=${pos.lng}`)
       .then((r) => r.json())
       .then((d) => {
@@ -101,33 +112,40 @@ export default function DottorSOS() {
   }, [pos]);
 
   useEffect(() => {
-    if (!pos) return;
     let stop = false;
     setLoading(true);
+    setBootLabel("Farmacie e DAE");
+    setProgress((p) => Math.max(p, 60));
     fetch(`/api/nearby?lat=${pos.lat}&lng=${pos.lng}`)
       .then((r) => r.json())
       .then((d) => {
         if (stop) return;
         setFarmacie(d.farmacie || []);
-        setDae(d.dae || []);
+        setDae(mergeDae(d.dae || [], pos.lat, pos.lng));
         setPs(d.ospedali || []);
         setMedici(d.medici || []);
         setPedvet(d.pedvet || []);
         setFonte(d.fonte || "");
         setOffline(false);
         localStorage.setItem("dottor-cache", JSON.stringify(d));
+        setProgress(100);
+        setBootLabel("Pronto");
+        setTimeout(() => setReady(true), 350);
       })
       .catch(() => {
         const raw = localStorage.getItem("dottor-cache");
         if (raw) {
           const d = JSON.parse(raw);
           setFarmacie(d.farmacie || []);
-          setDae(d.dae || []);
           setPs(d.ospedali || []);
           setMedici(d.medici || []);
           setPedvet(d.pedvet || []);
-          setOffline(true);
         }
+        setDae(mergeDae(cachedDae(), pos.lat, pos.lng));
+        setOffline(true);
+        setProgress(100);
+        setBootLabel("Offline pronto");
+        setTimeout(() => setReady(true), 350);
       })
       .finally(() => !stop && setLoading(false));
     return () => {
@@ -143,15 +161,19 @@ export default function DottorSOS() {
     if (!text) return;
     setChatInput("");
     setMessages((m) => [...m, { role: "user", text }]);
-    const res = await fetch("/api/nurse", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, lat: pos?.lat, lng: pos?.lng }),
-    });
-    const data = await res.json();
-    setMessages((m) => [...m, { role: "nurse", text: data.reply }]);
+    try {
+      const res = await fetch("/api/nurse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, lat: pos.lat, lng: pos.lng }),
+      });
+      const data = await res.json();
+      setMessages((m) => [...m, { role: "nurse", text: data.reply }]);
+      if (data.nearest) setSelected(data.nearest);
+    } catch {
+      setMessages((m) => [...m, { role: "nurse", text: "Offline. Emergenza: 118. Usa i DAE sulla mappa." }]);
+    }
     pulse();
-    if (data.nearest) setSelected(data.nearest);
   }
 
   function searchDrug() {
@@ -173,34 +195,33 @@ export default function DottorSOS() {
 
   return (
     <div className="w-full h-screen bg-black relative font-sans overflow-hidden text-[18px]">
+      {!ready && <Splash progress={progress} label={bootLabel} />}
       {flash && <div className="absolute inset-0 z-[2000] deaf-flash" />}
-      {pos && (
-        <MapContainer center={[pos.lat, pos.lng]} zoom={14} className="w-full h-full" zoomControl={false}>
-          <TileLayer attribution="&copy; OSM" url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-          {fly && <FlyTo lat={fly.lat} lng={fly.lng} />}
-          <CircleMarker center={[pos.lat, pos.lng]} radius={10} pathOptions={{ color: "#fff", fillColor: "#3b82f6", fillOpacity: 1 }} />
-          {(filter === "tutti" || filter === "farmacie") &&
-            farmList.map((f) => (
-              <Marker key={f.id} position={[f.lat, f.lng]} icon={dot(f.aperta ? "#16a34a" : "#b91c1c", "💊")} eventHandlers={{ click: () => { setSelected(f); pulse(); } }} />
-            ))}
-          {(filter === "tutti" || filter === "dae") &&
-            dae.map((d) => (
-              <Marker key={d.id} position={[d.lat, d.lng]} icon={dot("#2563eb", "⚡")} eventHandlers={{ click: () => setSelected(d) }} />
-            ))}
-          {(filter === "tutti" || filter === "ps") &&
-            ps.map((p) => (
-              <Marker key={p.id} position={[p.lat, p.lng]} icon={dot("#dc2626", "🏥")} eventHandlers={{ click: () => setSelected(p) }} />
-            ))}
-          {(filter === "tutti" || filter === "medici") &&
-            medici.map((m) => (
-              <Marker key={m.id} position={[m.lat, m.lng]} icon={dot("#ca8a04", "👨")} eventHandlers={{ click: () => setSelected(m) }} />
-            ))}
-          {(filter === "tutti" || filter === "pedvet") &&
-            pedvet.map((m) => (
-              <Marker key={m.id} position={[m.lat, m.lng]} icon={dot("#7c3aed", m.tipo === "vet" ? "🐾" : "👶")} eventHandlers={{ click: () => setSelected(m) }} />
-            ))}
-        </MapContainer>
-      )}
+      <MapContainer center={[pos.lat, pos.lng]} zoom={13} className="w-full h-full" zoomControl={false}>
+        <TileLayer attribution="&copy; OpenStreetMap" url={OSM} />
+        {fly && <FlyTo lat={fly.lat} lng={fly.lng} />}
+        <CircleMarker center={[pos.lat, pos.lng]} radius={10} pathOptions={{ color: "#fff", fillColor: "#3b82f6", fillOpacity: 1 }} />
+        {(filter === "tutti" || filter === "farmacie") &&
+          farmList.map((f) => (
+            <Marker key={f.id} position={[f.lat, f.lng]} icon={dot(f.aperta ? "#16a34a" : "#b91c1c", "💊")} eventHandlers={{ click: () => { setSelected(f); pulse(); } }} />
+          ))}
+        {(filter === "tutti" || filter === "dae") &&
+          dae.map((d) => (
+            <Marker key={d.id} position={[d.lat, d.lng]} icon={dot("#2563eb", "⚡")} eventHandlers={{ click: () => setSelected(d) }} />
+          ))}
+        {(filter === "tutti" || filter === "ps") &&
+          ps.map((p) => (
+            <Marker key={p.id} position={[p.lat, p.lng]} icon={dot("#dc2626", "🏥")} eventHandlers={{ click: () => setSelected(p) }} />
+          ))}
+        {(filter === "tutti" || filter === "medici") &&
+          medici.map((m) => (
+            <Marker key={m.id} position={[m.lat, m.lng]} icon={dot("#ca8a04", "👨")} eventHandlers={{ click: () => setSelected(m) }} />
+          ))}
+        {(filter === "tutti" || filter === "pedvet") &&
+          pedvet.map((m) => (
+            <Marker key={m.id} position={[m.lat, m.lng]} icon={dot("#7c3aed", m.tipo === "vet" ? "🐾" : "👶")} eventHandlers={{ click: () => setSelected(m) }} />
+          ))}
+      </MapContainer>
 
       <div className="absolute top-0 left-0 right-0 p-3 pointer-events-none z-[500]">
         <div className="max-w-5xl mx-auto flex flex-col gap-2 pointer-events-auto">
@@ -242,13 +263,13 @@ export default function DottorSOS() {
           {filter === "ps" && ps.slice(0, 7).map((p) => (
             <div key={p.id} onClick={() => setSelected(p)} className="py-3 border-b border-white/15 cursor-pointer">
               <p className="font-bold">{p.nome}</p>
-              <p className="text-white/70">{formatDistance(p.dist)} · {p.attesa}</p>
+              <p className="text-white/70">{formatDistance(p.dist)}</p>
             </div>
           ))}
-          {filter === "dae" && dae.slice(0, 7).map((d) => (
+          {filter === "dae" && dae.slice(0, 10).map((d) => (
             <div key={d.id} onClick={() => setSelected(d)} className="py-3 border-b border-white/15 cursor-pointer">
               <p className="font-bold">{d.nome}</p>
-              <p className="text-white/70">{formatDistance(d.dist)}</p>
+              <p className="text-white/70">{formatDistance(d.dist)} · {d.luogo}</p>
             </div>
           ))}
           {filter === "medici" && medici.slice(0, 7).map((d) => (
@@ -326,10 +347,9 @@ export default function DottorSOS() {
             <p className="uppercase font-bold tracking-widest text-sm text-white/70">{selected.tipo} · {formatDistance(selected.dist)}</p>
             <h2 className="font-black text-2xl mt-1">{selected.nome}</h2>
             {selected.chiusura && <p className="mt-2 text-white/80">{selected.chiusura}</p>}
-            {selected.attesa && <p className="mt-2 font-bold">{t.wait}: {selected.attesa}</p>}
             {selected.luogo && <p className="mt-2">{selected.luogo}</p>}
             {selected.tel && <a href={`tel:${selected.tel.replace(/\s/g, "")}`} className="mt-4 w-full h-[56px] rounded-full font-black glass-btn-on flex items-center justify-center">{t.call}</a>}
-            <a href={`https://www.google.com/maps/dir/?api=1&destination=${selected.lat},${selected.lng}`} target="_blank" rel="noreferrer" className="mt-2 w-full h-[56px] rounded-full font-black glass-btn flex items-center justify-center">{t.directions}</a>
+            <a href={`https://www.openstreetmap.org/directions?to=${selected.lat}%2C${selected.lng}`} target="_blank" rel="noreferrer" className="mt-2 w-full h-[56px] rounded-full font-black glass-btn flex items-center justify-center">{t.directions}</a>
           </div>
         </div>
       )}
